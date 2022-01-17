@@ -13,7 +13,7 @@ document.documentElement.addEventListener('mousedown', () => {
 
 const gainNode = new Tone.Gain();
 const vol = new Tone.Volume(-6);
-const player = new Tone.Player("Audio.mp3");
+const player = new Tone.Player("https://monlim.github.io/Handmutate/Audio.mp3");
 const reverb = new Tone.Reverb(3);
 const dist = new Tone.Distortion(0.8);
 const filter = new Tone.Filter(1500, "lowpass")
