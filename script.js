@@ -24,7 +24,7 @@ const mic = new Tone.UserMedia(3);
 player.loop = true; 
 player.chain(vol, filter, dist, reverb, gainNode, limiter);
 mic.open().then(() => {
-  alert("If using mic input, please make sure audio output and input are from different sources (e.g. wear headphones), or you will get feedback");
+  //alert("If using mic input, please make sure audio output and input are from different sources (e.g. wear headphones), or you will get feedback");
   console.log("mic open");
 }).catch(e => {
   console.log("mic not open");
