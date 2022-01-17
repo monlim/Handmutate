@@ -4,7 +4,9 @@ const canvasCtx = canvasElement.getContext('2d');
 var showTracking = document.getElementById("showTracking");
 const startSound = document.getElementById("startSound");
 const stopSound = document.getElementById("stopSound");
-const playLoop = document.getElementById("playLoop");
+const preview = document.getElementById("preview");
+const download = document.getElementById("download");
+const submit = document.getElementById("submit");
 
 //Reset audio context
 document.documentElement.addEventListener('mousedown', () => {
@@ -61,7 +63,7 @@ stopSound.addEventListener("click", function(ev){
   };
 });
 
-playLoop.addEventListener("change", function(){
+preview.addEventListener("change", function(){
   if (player2) {
     if (this.checked) {
     player2.start();
@@ -196,4 +198,3 @@ async function recordScreen() {
    } 
   screenrecorder.start()
 };
-
