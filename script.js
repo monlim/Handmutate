@@ -36,7 +36,7 @@ const dest = actx.createMediaStreamDestination();
 const recorder = new MediaRecorder(dest.stream);
 let buffer = [];
 let player2;
-mic.connect(limiter);
+mic.connect(dest);
 limiter.connect(dest);
 
 startSound.addEventListener("click", function(ev){
