@@ -120,15 +120,31 @@ camera.start();
 const actx = Tone.context;
 const dest = actx.createMediaStreamDestination();
 const recorder = new MediaRecorder(dest.stream);
+let camera_stream = null;
+let video_recorder = null;
+let blobs_recorded = [];
 let buffer = [];
 let player2;
 mic.connect(limiter);
 limiter.connect(dest);
 
-startSound.addEventListener("click", function(ev){
+startSound.addEventListener("click", async function(ev){
   mic.mute=false;
-  recorder.start();
-  recordStream();
+  camera_stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+  video_recorder = new MediaRecorder(camera_stream, { mimeType: 'video/webm' });
+
+  video_recorder.addEventListener('dataavailable', function(e) {
+    blobs_recorded.push(e.data);
+  });
+
+  video_recorder.addEventListener('stop', function() {
+      let video_local = URL.createObjectURL(new Blob(blobs_recorded, { type: 'video/webm' }));
+      console.log(video_local)
+      download.href = video_local;
+    });
+
+  video_recorder.start(200);
+  recorder.start(200);
   Tone.Transport.start();
   player.start(); 
 });
@@ -138,7 +154,7 @@ stopSound.addEventListener("click", function(ev){
   player.stop(); 
   mic.mute=true;
   recorder.stop();
-  stopRecording();
+  video_recorder.stop();
   recorder.ondataavailable = ev => buffer.push(ev.data);
   recorder.onstop = ev => {
     let blob = new Blob(buffer, {type: 'audio/mp3; codecs=opus' });
@@ -149,7 +165,7 @@ stopSound.addEventListener("click", function(ev){
     let a = document.createElement('a');
     a.href = audiofile;
     a.download = 'audiofile.ogg';
-    a.click();
+    //a.click();
     window.URL.revokeObjectURL(audiofile); 
   };
 });
@@ -163,62 +179,3 @@ preview.addEventListener("change", function(){
     }
   };
 });
-
-//capture webcam & mic
-async function captureMediaDevices(mediaConstraints = {
-    video: {
-      width: 1280,
-      height: 720
-    },
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      sampleRate: 44100
-    }
-  }) {
-  const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints)
-  
-  videoElement.src = null
-  videoElement.srcObject = stream
-  videoElement.muted = true
-  
-  return stream
-};
-
-let screenrecorder = null
-
-async function recordStream() {
-  const stream = await captureMediaDevices()
-  
-  videoElement.src = null
-  videoElement.srcObject = stream
-  videoElement.muted = true
-  
-  screenrecorder = new MediaRecorder(stream)
-  
-  let chunks = [];
-
-  screenrecorder.ondataavailable = event => {
-    if (event.data.size > 0) {
-      chunks.push(event.data)
-    }
-  }
-  
-  screenrecorder.onstop = () => {
-    const blob2 = new Blob(chunks, {
-      type: 'video/webm'
-    })
-    
-    chunks = []
-    const videofile = URL.createObjectURL(blob2)
-    videoElement.srcObject = null
-    videoElement.src = videofile
-    videoElement.muted = false 
-   }
-  
-  screenrecorder.start()
-};
-
-function stopRecording() {
- screenrecorder.stream.getTracks().forEach(track => track.stop())
-};
