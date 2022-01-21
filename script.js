@@ -31,48 +31,6 @@ mic.open().then(() => {
 });
 mic.mute = true;
 
-const actx = Tone.context;
-const dest = actx.createMediaStreamDestination();
-const recorder = new MediaRecorder(dest.stream);
-let buffer = [];
-let player2;
-mic.connect(dest);
-limiter.connect(dest);
-
-startSound.addEventListener("click", function(ev){
-  mic.mute=false;
-  recorder.start();
-  recordScreen();
-  Tone.Transport.start();
-  player.start(); 
-});
-
-stopSound.addEventListener("click", function(ev){
-  Tone.Transport.stop();
-  player.stop(); 
-  mic.mute=true;
-  recorder.stop();
-  stopRecording();
-  recorder.ondataavailable = ev => buffer.push(ev.data);
-  recorder.onstop = ev => {
-    let blob = new Blob(buffer, {type: 'audio/ogg; codecs=opus' });
-    let file2 = URL.createObjectURL(blob);
-    let buffer1 = new Tone.Buffer(file2);
-    player2 = new Tone.Player(buffer1);
-    player2.connect(gainNode);
-  };
-});
-
-preview.addEventListener("change", function(){
-  if (player2) {
-    if (this.checked) {
-    player2.start();
-    } else {
-     player2.stop();
-    }
-  };
-});
-
 function scaleValue(value, from, to) {
   var scale = (to[1] - to[0]) / (from[1] - from[0]);
   var capped = Math.min(from[1], Math.max(from[0], value)) - from[0];
@@ -159,42 +117,113 @@ const camera = new Camera(videoElement, {
 });
 camera.start();
 
-async function captureScreen() {
-  mediaConstraints = {
-    video: {
-      cursor: 'always',
-      resizeMode: 'crop-and-scale'
+const actx = Tone.context;
+const dest = actx.createMediaStreamDestination();
+const recorder = new MediaRecorder(dest.stream);
+let buffer = [];
+let player2;
+mic.connect(limiter);
+limiter.connect(dest);
+
+startSound.addEventListener("click", function(ev){
+  mic.mute=false;
+  recorder.start();
+  recordStream();
+  Tone.Transport.start();
+  player.start(); 
+});
+
+stopSound.addEventListener("click", function(ev){
+  Tone.Transport.stop();
+  player.stop(); 
+  mic.mute=true;
+  recorder.stop();
+  stopRecording();
+  recorder.ondataavailable = ev => buffer.push(ev.data);
+  recorder.onstop = ev => {
+    let blob = new Blob(buffer, {type: 'audio/mp3; codecs=opus' });
+    let audiofile = URL.createObjectURL(blob);
+    let buffer1 = new Tone.Buffer(audiofile);
+    player2 = new Tone.Player(buffer1);
+    player2.connect(gainNode);
+    let a = document.createElement('a');
+    a.href = audiofile;
+    a.download = 'audiofile.ogg';
+    a.click();
+    window.URL.revokeObjectURL(audiofile); 
+  };
+});
+
+preview.addEventListener("change", function(){
+  if (player2) {
+    if (this.checked) {
+    player2.start();
+    } else {
+     player2.stop();
     }
-  }
-  const screenStream = await navigator.mediaDevices.getDisplayMedia(mediaConstraints)
-  return screenStream
+  };
+});
+
+//capture webcam & mic
+async function captureMediaDevices(mediaConstraints = {
+    video: {
+      width: 1280,
+      height: 720
+    },
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      sampleRate: 44100
+    }
+  }) {
+  const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints)
+  
+  videoElement.src = null
+  videoElement.srcObject = stream
+  videoElement.muted = true
+  
+  return stream
 };
 
-let screenrecorder = null;
+let screenrecorder = null
 
-function stopRecording() {
- screenrecorder.stream.getTracks().forEach(track => track.stop())
-}
+async function recordStream() {
+  const stream = await captureMediaDevices()
+  
+  videoElement.src = null
+  videoElement.srcObject = stream
+  videoElement.muted = true
+  
+  screenrecorder = new MediaRecorder(stream)
+  
+  let chunks = [];
 
-async function recordScreen() {
-  const screenStream = await captureScreen() 
-  //const stream = new MediaStream([...screenStream.getTracks(), ...audioStream.getTracks()])  
-  screenrecorder = new MediaRecorder(screenStream)
-  let chunks = []
   screenrecorder.ondataavailable = event => {
     if (event.data.size > 0) {
       chunks.push(event.data)
     }
-  }  
+  }
+  
   screenrecorder.onstop = () => {
     const blob2 = new Blob(chunks, {
       type: 'video/webm'
-    })   
+    })
+    
     chunks = []
-    const blobUrl = URL.createObjectURL(blob2)
+    const videofile = URL.createObjectURL(blob2)
     videoElement.srcObject = null
-    videoElement.src = blobUrl
-    videoElement.muted = false
-   } 
+    videoElement.src = videofile
+    videoElement.muted = false 
+    let b = document.createElement('b');
+    b.href = videofile;
+    b.download = 'videofile.webm';
+    b.click();
+    window.URL.revokeObjectURL(videofile); 
+   }
+  
   screenrecorder.start()
+};
+
+function stopRecording() {
+ screenrecorder.stream.getTracks().forEach(track => track.stop())
 };
