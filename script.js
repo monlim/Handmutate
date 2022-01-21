@@ -214,11 +214,6 @@ async function recordStream() {
     videoElement.srcObject = null
     videoElement.src = videofile
     videoElement.muted = false 
-    let b = document.createElement('b');
-    b.href = videofile;
-    b.download = 'videofile.webm';
-    b.click();
-    window.URL.revokeObjectURL(videofile); 
    }
   
   screenrecorder.start()
