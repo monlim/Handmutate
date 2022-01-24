@@ -1,12 +1,9 @@
-const videoElement = document.getElementsByClassName('input_video')[0];
+
+const parts = [];
+let mediaRecorder;
+const video = document.getElementById('video');
 const canvasElement = document.getElementsByClassName('output_canvas')[0];
 const canvasCtx = canvasElement.getContext('2d');
-var showTracking = document.getElementById("showTracking");
-const startSound = document.getElementById("startSound");
-const stopSound = document.getElementById("stopSound");
-const preview = document.getElementById("preview");
-const download = document.getElementById("download");
-const submit = document.getElementById("submit");
 
 //Reset audio context
 document.documentElement.addEventListener('mousedown', () => {
@@ -60,7 +57,7 @@ function myMusic(leftIndex, rightIndex){
     vol.volume.rampTo((clamp(scaleValue(distance, [0, 1], [-16, 0]), -36, 0)), 0.1);
     reverb.wet.value = (clamp((distance), 0, 1));
   }
-  };
+};
 
 //Draw Hand landmarks on screen
 function onResults(results) {
@@ -108,9 +105,9 @@ hands.setOptions({
 
 hands.onResults(onResults);
 
-const camera = new Camera(videoElement, {
+const camera = new Camera(video, {
   onFrame: async () => {
-    await hands.send({image: videoElement});
+    await hands.send({image: video});
   },
   width: 1280,
   height: 720
@@ -120,62 +117,52 @@ camera.start();
 const actx = Tone.context;
 const dest = actx.createMediaStreamDestination();
 const recorder = new MediaRecorder(dest.stream);
-let camera_stream = null;
-let video_recorder = null;
-let blobs_recorded = [];
 let buffer = [];
-let player2;
 mic.connect(limiter);
 limiter.connect(dest);
 
-startSound.addEventListener("click", async function(ev){
-  mic.mute=false;
-  camera_stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
-  video_recorder = new MediaRecorder(camera_stream, { mimeType: 'video/webm' });
-
-  video_recorder.addEventListener('dataavailable', function(e) {
-    blobs_recorded.push(e.data);
-  });
-
-  video_recorder.addEventListener('stop', function() {
-      let video_local = URL.createObjectURL(new Blob(blobs_recorded, { type: 'video/webm' }));
-      console.log(video_local)
-      download.href = video_local;
-    });
-
-  video_recorder.start(200);
-  recorder.start(200);
-  Tone.Transport.start();
-  player.start(); 
+//start sound & webcam recording
+navigator.mediaDevices.getUserMedia({audio:true, video:true}).then(stream => {
+	//video.srcObject = stream;
+	document.getElementById("btn").onclick = function (){
+		mic.mute=false;
+    mediaRecorder = new MediaRecorder(stream);
+		mediaRecorder.start(500);
+    recorder.start();
+    Tone.Transport.start();
+    player.start();
+		mediaRecorder.ondataavailable = function (e){
+			parts.push(e.data);
+		}
+    recorder.ondataavailable = ev => buffer.push(ev.data);
+	}
 });
 
-stopSound.addEventListener("click", function(ev){
-  Tone.Transport.stop();
-  player.stop(); 
+//record audio & webcam and download on stop
+document.getElementById("stopbtn").onclick = function() {
+	Tone.Transport.stop();
+  player.stop();
   mic.mute=true;
   recorder.stop();
-  video_recorder.stop();
-  recorder.ondataavailable = ev => buffer.push(ev.data);
   recorder.onstop = ev => {
     let blob = new Blob(buffer, {type: 'audio/mp3; codecs=opus' });
     let audiofile = URL.createObjectURL(blob);
     let buffer1 = new Tone.Buffer(audiofile);
-    player2 = new Tone.Player(buffer1);
-    player2.connect(gainNode);
     let a = document.createElement('a');
     a.href = audiofile;
     a.download = 'audiofile.ogg';
-    //a.click();
+    a.click();
     window.URL.revokeObjectURL(audiofile); 
   };
-});
-
-preview.addEventListener("change", function(){
-  if (player2) {
-    if (this.checked) {
-    player2.start();
-    } else {
-     player2.stop();
-    }
-  };
-});
+  mediaRecorder.stop();
+	const blob = new Blob(parts, {
+		type: "video/webm"
+	});
+	const url = URL.createObjectURL(blob);
+	const b = document.createElement("a");
+	document.body.appendChild(b);
+	b.style = "display: none";
+	b.href = url;
+	b.download = "test.webm";
+	b.click();
+};
