@@ -11,22 +11,28 @@ document.documentElement.addEventListener('mousedown', () => {
 });
 
 const gainNode = new Tone.Gain();
-const vol = new Tone.Volume(-6);
-const player = new Tone.Player("https://monlim.github.io/Handmutate/Audio.mp3");
-const reverb = new Tone.Reverb(3);
-const dist = new Tone.Distortion(0.8);
-const filter = new Tone.Filter(1500, "lowpass")
+const vol = new Tone.Volume(0);
+const player = new Tone.Player("https://monlim.github.io/Handmutate/Stick.mp3");
+const meter = new Tone.Meter();
+gainNode.connect(meter);
+//const reverb = new Tone.Reverb(3);
+//const dist = new Tone.Distortion(0.8);
+const lowPassFilter = new Tone.Filter(16000, "lowpass");
+const highPassFilter = new Tone.Filter(50, "highpass");
 const limiter = new Tone.Limiter(-0.03).toDestination();
-const mic = new Tone.UserMedia(3);
-player.loop = true; 
-player.chain(vol, filter, dist, reverb, gainNode, limiter);
-mic.open().then(() => {
+let delayTime = 0.9;
+let feedback = 0.7;
+const pingPong = new Tone.PingPongDelay(delayTime, feedback); 
+//const mic = new Tone.UserMedia(3);
+player.loop = false; 
+player.chain(vol, pingPong, lowPassFilter, highPassFilter, gainNode, limiter);
+/*mic.open().then(() => {
   //alert("If using mic input, please make sure audio output and input are from different sources (e.g. wear headphones), or you will get feedback");
   console.log("mic open");
 }).catch(e => {
   console.log("mic not open");
 });
-mic.mute = true;
+mic.mute = true;*/
 
 function scaleValue(value, from, to) {
   var scale = (to[1] - to[0]) / (from[1] - from[0]);
@@ -34,28 +40,38 @@ function scaleValue(value, from, to) {
   return (capped * scale + to[0]);
 };
 
+function pingPongDelay(controlValue){
+  delayTime = (scaleValue(controlValue, [0, 0.3], [0, 0.5]));
+};
+
+function pingPongFeedback(controlValue){
+  feedback = clamp((scaleValue(controlValue, [0, 0.3], [0, 0.7])), 0., 0.95);
+};
+
+//self-regulating volume
+vol.volume.rampTo((clamp(scaleValue(meter.getValue(), [-36, 0], [0, -36]), -36, 0)), 0.1);
+
 //Sound engine
-function myMusic(leftIndex, rightIndex){ 
+function myMusic(leftIndex, leftThumb, leftWrist, rightIndex, rightThumb, rightWrist){ 
   if (leftIndex){
-    let leftIndexX = leftIndex.x;
-    let leftIndexY = leftIndex.y;
-    player.playbackRate = scaleValue(leftIndexX, [0.15, 0.4], [4, 0.05]);
-    let myFilter = scaleValue(leftIndexY, [0, 1], [10000, 100]);
-    filter.frequency.rampTo(myFilter, 0.05);
-    };
+    //let myFilter = scaleValue(leftIndexY, [0, 1], [10000, 100]);
+    //filter.frequency.rampTo(myFilter, 0.05);
+    let fingerDistanceLeft = Math.sqrt(((leftIndex.x - leftThumb.x)**2)+((leftIndex.y - leftThumb.y)**2));
+    pingPongDelay(fingerDistanceLeft);
+  };
   if (rightIndex){
-    let rightIndexX = rightIndex.x;
-    let rightIndexY = rightIndex.y
-    dist.distortion = 1 - (clamp(rightIndexY, 0, 1));
-    };
+    //dist.distortion = 1 - (clamp(rightIndexY, 0, 1));
+    let fingerDistanceRight = Math.sqrt(((rightIndex.x - rightThumb.x)**2)+((rightIndex.y - rightThumb.y)**2));
+    pingPongFeedback(fingerDistanceRight);
+    rightIndex.x < rightThumb.x ? player.reverse=true : player.reverse=false;
+  };
   if (leftIndex && rightIndex){
-    let leftIndexX = leftIndex.x;
-    let leftIndexY = leftIndex.y;
-    let rightIndexX = rightIndex.x;
-    let rightIndexY = rightIndex.y;
-    let distance = Math.sqrt(((leftIndexX - rightIndexX)**2)+((leftIndexY - rightIndexY)**2));
-    vol.volume.rampTo((clamp(scaleValue(distance, [0, 1], [-16, 0]), -36, 0)), 0.1);
-    reverb.wet.value = (clamp((distance), 0, 1));
+    let distance = Math.sqrt(((leftIndex.x - rightIndex.x)**2)+((leftIndex.y - rightIndex.y)**2));
+    let averageY = 1-((leftIndex.y + rightIndex.y)/2);
+    player.playbackRate = (scaleValue(distance, [0, 1], [2, 0.2]));
+    leftIndex.x > leftThumb.x ? pingPong.wet.value=0: pingPong.wet.value=scaleValue(distance, [0, 1], [0, 0.5]);
+    //vol.volume.rampTo((clamp(scaleValue(distance, [0, 1], [-16, 0]), -36, 0)), 0.1);
+    //reverb.wet.value = (clamp((distance), 0, 1));
   }
 };
 
@@ -82,12 +98,17 @@ function onResults(results) {
         }
       });
     if (isRightHand === false){
-      leftIndex = landmarks[8]} else {
-      rightIndex = landmarks[8]
+      leftIndex = landmarks[8];
+      leftThumb = landmarks[4];
+      leftWrist = landmarks[0];
+    } else {
+      rightIndex = landmarks[8];
+      rightThumb = landmarks[4];
+      rightWrist = landmarks[0];
       }
     }
   canvasCtx.restore();
-  myMusic(leftIndex, rightIndex);
+  myMusic(leftIndex, leftThumb, leftWrist, rightIndex, rightThumb, rightWrist);
   };
 };
 
@@ -118,19 +139,20 @@ const actx = Tone.context;
 const dest = actx.createMediaStreamDestination();
 const recorder = new MediaRecorder(dest.stream);
 let buffer = [];
-mic.connect(limiter);
+//mic.connect(limiter);
 limiter.connect(dest);
 
 //start sound & webcam recording
 navigator.mediaDevices.getUserMedia({audio:true, video:true}).then(stream => {
 	//video.srcObject = stream;
 	document.getElementById("btn").onclick = function (){
-		mic.mute=false;
+		//mic.mute=false;
     mediaRecorder = new MediaRecorder(stream);
 		mediaRecorder.start(500);
     recorder.start();
     Tone.Transport.start();
     player.start();
+    //setInterval(() => console.log(meter.getValue()), 100);
 		mediaRecorder.ondataavailable = function (e){
 			parts.push(e.data);
 		}
@@ -138,11 +160,12 @@ navigator.mediaDevices.getUserMedia({audio:true, video:true}).then(stream => {
 	}
 });
 
-//record audio & webcam and download on stop
+//record audio & webcam and download on end of file
 document.getElementById("stopbtn").onclick = function() {
+//player.onstop = function(){
 	Tone.Transport.stop();
   player.stop();
-  mic.mute=true;
+  //mic.mute=true;
   recorder.stop();
   recorder.onstop = ev => {
     let blob = new Blob(buffer, {type: 'audio/mp3; codecs=opus' });
